@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Expo
+.expo/
+.expo-shared/
+
+# Build
+dist/
+
+# Logs
+*.log
+
+# Editor
+.vscode/
+
+# AI assistant files
+.claude/
+CLAUDE.md
+AGENTS.md
+
+# OS
+.DS_Store
+Thumbs.db
