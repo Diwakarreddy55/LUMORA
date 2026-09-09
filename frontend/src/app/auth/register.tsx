@@ -13,14 +13,52 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
 export default function RegisterScreen() {
   const [phone, setPhone] = useState('');
   const [accepted, setAccepted] = useState(false);
 
-  const continueRegister = () => {
-    if (phone.length === 10 && accepted) {
-      router.push('/auth/otp');
+
+
+
+
+  const continueRegister = async () => {
+    if (phone.length !== 10 || !accepted) {
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `${API_URL}/api/auth/register/send-otp`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            phone: `+91${phone}`,
+            purpose: 'register',
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(data.message || 'Failed to send OTP');
+        return;
+      }
+
+      router.push({
+        pathname: '/auth/otp',
+        params: {
+          phone: `+91${phone}`,
+          purpose: 'register',
+        },
+      });
+    } catch (error) {
+      console.error('Register OTP error:', error);
+      alert('Unable to connect to server');
     }
   };
 
@@ -127,7 +165,7 @@ export default function RegisterScreen() {
               style={[
                 styles.button,
                 (phone.length !== 10 || !accepted) &&
-                  styles.disabled,
+                styles.disabled,
               ]}
             >
               <Text style={styles.buttonText}>

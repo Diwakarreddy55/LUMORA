@@ -1,19 +1,18 @@
-import mongoose from 'mongoose';
+import mysql from 'mysql2/promise';
+import dotenv from 'dotenv';
 
-const connectDB = async (): Promise<void> => {
-  try {
-    if (!process.env.MONGODB_URI) {
-      throw new Error('MONGODB_URI is missing in .env');
-    }
+dotenv.config();
 
-    await mongoose.connect(process.env.MONGODB_URI);
+const pool = mysql.createPool({
+  host: process.env.DB_HOST || '127.0.0.1',
+  port: Number(process.env.DB_PORT) || 3306,
+  user: process.env.DB_USERNAME || 'root',
+  password: process.env.DB_PASSWORD || '',
+  database: process.env.DB_DATABASE || 'lumora',
 
-    console.log('✅ MongoDB connected successfully');
-    console.log(`📦 Database: ${mongoose.connection.name}`);
-  } catch (error) {
-    console.error('❌ MongoDB connection failed:', error);
-    process.exit(1);
-  }
-};
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
+});
 
-export default connectDB;
+export default pool;

@@ -13,15 +13,54 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 export default function LoginScreen() {
   const [phone, setPhone] = useState('');
 
-  const continueLogin = () => {
-    if (phone.length >= 10) {
-      router.push('/auth/otp');
+
+
+  const continueLogin = async () => {
+    if (phone.length !== 10) {
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `${API_URL}/api/auth/login/send-otp`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            phone: `+91${phone}`,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(data.message || 'Failed to send OTP');
+        return;
+      }
+
+      // Go to OTP screen
+      router.push({
+        pathname: '/auth/otp',
+        params: {
+          phone: `+91${phone}`,
+          purpose: 'login',
+        },
+      });
+
+    } catch (error) {
+      console.error('Login OTP error:', error);
+      alert('Unable to connect to server');
     }
   };
+
 
   return (
     <LinearGradient

@@ -8,17 +8,37 @@ import {
   KeyboardAvoidingView,
   Platform,
   StatusBar,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
+
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 export default function OTPScreen() {
-  const [otp, setOtp] = useState(['', '', '', '', '', '']);
+  const { phone, purpose } = useLocalSearchParams<{
+    phone?: string;
+    purpose?: string;
+  }>();
+
+  const [otp, setOtp] = useState([
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+  ]);
+
   const [seconds, setSeconds] = useState(30);
+  const [loading, setLoading] = useState(false);
 
   const inputs = useRef<Array<TextInput | null>>([]);
 
+  /*
+   * OTP TIMER
+   */
   useEffect(() => {
     if (seconds <= 0) return;
 
@@ -29,7 +49,13 @@ export default function OTPScreen() {
     return () => clearInterval(timer);
   }, [seconds]);
 
-  const handleChange = (value: string, index: number) => {
+  /*
+   * OTP INPUT
+   */
+  const handleChange = (
+    value: string,
+    index: number
+  ) => {
     const cleanValue = value.replace(/\D/g, '');
 
     if (!cleanValue) {
@@ -40,7 +66,9 @@ export default function OTPScreen() {
     }
 
     const next = [...otp];
+
     next[index] = cleanValue.slice(-1);
+
     setOtp(next);
 
     if (index < 5) {
@@ -48,7 +76,13 @@ export default function OTPScreen() {
     }
   };
 
-  const handleKeyPress = (event: any, index: number) => {
+  /*
+   * BACKSPACE
+   */
+  const handleKeyPress = (
+    event: any,
+    index: number
+  ) => {
     if (
       event.nativeEvent.key === 'Backspace' &&
       !otp[index] &&
@@ -58,13 +92,185 @@ export default function OTPScreen() {
     }
   };
 
-  const resend = () => {
-    setOtp(['', '', '', '', '', '']);
-    setSeconds(30);
-    inputs.current[0]?.focus();
+  /*
+   * RESEND OTP
+   */
+  const resend = async () => {
+    if (seconds > 0 || !phone) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const response = await fetch(
+        `${API_URL}/api/auth/register/send-otp`,
+        {
+          method: 'POST',
+
+          headers: {
+            'Content-Type': 'application/json',
+          },
+
+          body: JSON.stringify({
+            phone: phone,
+            purpose: purpose || 'register',
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      console.log('Resend OTP response:', data);
+
+      if (!response.ok) {
+        Alert.alert(
+          'Unable to resend',
+          data.message || 'Failed to resend OTP'
+        );
+        return;
+      }
+
+      setOtp([
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+      ]);
+
+      setSeconds(30);
+
+      inputs.current[0]?.focus();
+
+      Alert.alert(
+        'OTP Sent',
+        'A new verification code has been sent.'
+      );
+
+    } catch (error) {
+      console.error(
+        'Resend OTP error:',
+        error
+      );
+
+      Alert.alert(
+        'Connection Error',
+        'Unable to connect to server'
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const verified = otp.every((digit) => digit !== '');
+  /*
+   * VERIFY OTP
+   */
+  const verifyOtp = async () => {
+    if (!phone) {
+      Alert.alert(
+        'Error',
+        'Phone number is missing'
+      );
+      return;
+    }
+
+    const enteredOtp = otp.join('');
+
+    if (enteredOtp.length !== 6) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      console.log('Verifying OTP:', {
+        phone,
+        otp: enteredOtp,
+      });
+
+      const response = await fetch(
+        `${API_URL}/api/auth/register/verify-otp`,
+        {
+          method: 'POST',
+
+          headers: {
+            'Content-Type': 'application/json',
+          },
+
+          body: JSON.stringify({
+            phone: phone,
+            otp: enteredOtp,
+            purpose: purpose || 'register',
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      console.log(
+        'Verify OTP response:',
+        data
+      );
+
+      if (!response.ok) {
+        Alert.alert(
+          'Verification Failed',
+          data.message || 'Invalid OTP'
+        );
+        return;
+      }
+
+      /*
+       * OTP VERIFIED
+       *
+       * Next step will be:
+       * Profile setup
+       */
+      Alert.alert(
+        'Verified',
+        'Mobile number verified successfully.',
+        [
+          {
+            text: 'Continue',
+            onPress: () => {
+              router.replace('/profile/basic');
+            },
+          },
+        ]
+      );
+
+    } catch (error) {
+      console.error(
+        'Verify OTP error:',
+        error
+      );
+
+      Alert.alert(
+        'Connection Error',
+        'Unable to connect to server'
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const verified =
+    otp.every((digit) => digit !== '');
+
+  /*
+   * DISPLAY PHONE NUMBER
+   *
+   * Example:
+   * +919876543210
+   *
+   * becomes:
+   * +91 •••••• 3210
+   */
+  const displayPhone = phone
+    ? `${phone.slice(0, 3)} •••••• ${phone.slice(-4)}`
+    : '+91 ••••••';
 
   return (
     <LinearGradient
@@ -75,9 +281,14 @@ export default function OTPScreen() {
 
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={
+          Platform.OS === 'ios'
+            ? 'padding'
+            : undefined
+        }
       >
         <View style={styles.content}>
+
           <Pressable
             style={styles.back}
             onPress={() => router.back()}
@@ -90,6 +301,7 @@ export default function OTPScreen() {
           </Pressable>
 
           <View style={styles.header}>
+
             <View style={styles.icon}>
               <Ionicons
                 name="chatbubble-ellipses"
@@ -104,7 +316,9 @@ export default function OTPScreen() {
 
             <Text style={styles.title}>
               Check your{'\n'}
-              <Text style={styles.pink}>messages.</Text>
+              <Text style={styles.pink}>
+                messages.
+              </Text>
             </Text>
 
             <Text style={styles.subtitle}>
@@ -112,17 +326,24 @@ export default function OTPScreen() {
             </Text>
 
             <View style={styles.numberRow}>
+
               <Text style={styles.number}>
-                +91 •••••• 4821
+                {displayPhone}
               </Text>
 
-              <Pressable onPress={() => router.back()}>
-                <Text style={styles.edit}>Edit</Text>
+              <Pressable
+                onPress={() => router.back()}
+              >
+                <Text style={styles.edit}>
+                  Edit
+                </Text>
               </Pressable>
+
             </View>
           </View>
 
           <View style={styles.otpContainer}>
+
             {otp.map((digit, index) => (
               <TextInput
                 key={index}
@@ -131,59 +352,86 @@ export default function OTPScreen() {
                 }}
                 value={digit}
                 onChangeText={(value) =>
-                  handleChange(value, index)
+                  handleChange(
+                    value,
+                    index
+                  )
                 }
                 onKeyPress={(event) =>
-                  handleKeyPress(event, index)
+                  handleKeyPress(
+                    event,
+                    index
+                  )
                 }
                 keyboardType="number-pad"
                 maxLength={1}
                 selectTextOnFocus
                 style={[
                   styles.otpInput,
-                  digit !== '' && styles.activeInput,
+                  digit !== '' &&
+                    styles.activeInput,
                 ]}
               />
             ))}
+
           </View>
 
           <View style={styles.resendContainer}>
+
             {seconds > 0 ? (
+
               <Text style={styles.resendText}>
                 Didn't receive the code?{' '}
                 <Text style={styles.timer}>
                   Resend in {seconds}s
                 </Text>
               </Text>
+
             ) : (
-              <Pressable onPress={resend}>
+
+              <Pressable
+                onPress={resend}
+                disabled={loading}
+              >
                 <Text style={styles.resendButton}>
                   Didn't receive the code? Resend
                 </Text>
               </Pressable>
+
             )}
+
           </View>
 
           <Pressable
-            disabled={!verified}
-            onPress={() => router.replace('/')}
+            disabled={
+              !verified || loading
+            }
+            onPress={verifyOtp}
             style={[
               styles.verifyButton,
-              !verified && styles.disabled,
+              (!verified || loading) &&
+                styles.disabled,
             ]}
           >
+
             <Text style={styles.verifyText}>
-              Verify & continue
+              {loading
+                ? 'Please wait...'
+                : 'Verify & continue'}
             </Text>
 
-            <Ionicons
-              name="arrow-forward"
-              size={20}
-              color="#fff"
-            />
+            {!loading && (
+              <Ionicons
+                name="arrow-forward"
+                size={20}
+                color="#fff"
+              />
+            )}
+
           </Pressable>
 
           <View style={styles.security}>
+
             <Ionicons
               name="shield-checkmark-outline"
               size={18}
@@ -193,7 +441,9 @@ export default function OTPScreen() {
             <Text style={styles.securityText}>
               Your verification is encrypted and secure
             </Text>
+
           </View>
+
         </View>
       </KeyboardAvoidingView>
     </LinearGradient>
