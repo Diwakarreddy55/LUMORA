@@ -1,7 +1,10 @@
 import dotenv from "dotenv";
 
 dotenv.config();
-
+console.log(
+  "JWT SECRET EXISTS:",
+  !!process.env.JWT_SECRET
+);
 import app from "./app";
 import pool from "./config/database";
 import path from "path";

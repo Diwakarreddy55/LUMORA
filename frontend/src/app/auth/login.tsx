@@ -13,6 +13,8 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+
+import jwt from 'jsonwebtoken';
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 export default function LoginScreen() {
@@ -48,7 +50,7 @@ export default function LoginScreen() {
 
       // Go to OTP screen
       router.push({
-        pathname: '/auth/otp',
+        pathname: '/auth/login_otp',
         params: {
           phone: `+91${phone}`,
           purpose: 'login',
