@@ -13,7 +13,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-
+import AsyncStorage from "@react-native-async-storage/async-storage";
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 export default function OTPScreen() {
@@ -214,6 +214,18 @@ export default function OTPScreen() {
         data
       );
 
+      if (data.user?.id) {
+        await AsyncStorage.setItem(
+          "user_id",
+          String(data.user.id)
+        );
+
+        console.log(
+          "User ID saved to AsyncStorage:",
+          data.user.id
+        );
+      }
+
       if (!response.ok) {
         Alert.alert(
           'Verification Failed',
@@ -369,7 +381,7 @@ export default function OTPScreen() {
                 style={[
                   styles.otpInput,
                   digit !== '' &&
-                    styles.activeInput,
+                  styles.activeInput,
                 ]}
               />
             ))}
@@ -410,7 +422,7 @@ export default function OTPScreen() {
             style={[
               styles.verifyButton,
               (!verified || loading) &&
-                styles.disabled,
+              styles.disabled,
             ]}
           >
 

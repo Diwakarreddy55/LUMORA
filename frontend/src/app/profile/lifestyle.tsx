@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
+
 import {
   View,
   Text,
@@ -7,46 +8,139 @@ import {
   ScrollView,
   StatusBar,
   useWindowDimensions,
+  Alert,
+  Animated,
+  Platform,
 } from 'react-native';
+
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import { API_BASE_URL } from '../../../config/api';
 
 const choices = [
   {
     value: 'Non-smoker',
     label: 'Non-smoker',
+    description: "I don't smoke",
     icon: 'leaf-outline',
   },
   {
     value: 'Occasionally',
     label: 'Occasionally',
+    description: 'From time to time',
     icon: 'partly-sunny-outline',
   },
   {
     value: 'Social smoker',
     label: 'Social smoker',
+    description: "Mostly when I'm out",
     icon: 'people-outline',
   },
   {
     value: 'Prefer not to say',
     label: 'Prefer not to say',
+    description: "I'd rather keep this private",
     icon: 'eye-off-outline',
   },
 ];
 
 export default function LifestyleScreen() {
   const { width } = useWindowDimensions();
+
   const isTablet = width >= 768;
+  const isSmall = width < 380;
 
   const [smoking, setSmoking] = useState('');
 
+  const scaleAnimations = useRef(
+    choices.reduce((acc, item) => {
+      acc[item.value] = new Animated.Value(1);
+      return acc;
+    }, {} as Record<string, Animated.Value>)
+  ).current;
+
   const canContinue = smoking !== '';
 
-  const handleContinue = () => {
-    if (!canContinue) return;
+  const selectChoice = (value: string) => {
+    setSmoking(value);
 
-    router.push('/profile/location');
+    Animated.sequence([
+      Animated.spring(scaleAnimations[value], {
+        toValue: 1.025,
+        useNativeDriver: true,
+        speed: 25,
+        bounciness: 6,
+      }),
+      Animated.spring(scaleAnimations[value], {
+        toValue: 1,
+        useNativeDriver: true,
+        speed: 20,
+        bounciness: 4,
+      }),
+    ]).start();
+  };
+
+  const handleContinue = async () => {
+    if (!canContinue) {
+      return;
+    }
+
+    try {
+      const userId =
+        await AsyncStorage.getItem('user_id');
+
+      if (!userId) {
+        Alert.alert(
+          'Error',
+          'User information not found. Please login again.'
+        );
+
+        return;
+      }
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/profile/lifestyle`,
+        {
+          method: 'POST',
+
+          headers: {
+            'Content-Type': 'application/json',
+          },
+
+          body: JSON.stringify({
+            user_id: Number(userId),
+            smoking: smoking,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        Alert.alert(
+          'Error',
+          data.message || 'Failed to save lifestyle'
+        );
+
+        return;
+      }
+
+      router.push('/profile/location');
+
+    } catch (error) {
+      console.error(
+        'handleContinue error:',
+        error
+      );
+
+      Alert.alert(
+        'Error',
+        'Unable to connect to server'
+      );
+    }
   };
 
   return (
@@ -59,6 +153,7 @@ export default function LifestyleScreen() {
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         <View
           style={[
@@ -66,43 +161,93 @@ export default function LifestyleScreen() {
             isTablet && styles.contentTablet,
           ]}
         >
-          {/* BACK */}
 
-          <Pressable
-            style={styles.back}
-            onPress={() => router.back()}
-          >
-            <Ionicons
-              name="arrow-back"
-              size={22}
-              color="#18181B"
-            />
-          </Pressable>
+          {/* =====================================
+              TOP BAR
+          ===================================== */}
 
-          {/* PROGRESS - STEP 6 */}
+          <View style={styles.topRow}>
 
-          <View style={styles.progress}>
-            <View style={styles.activeProgress} />
-            <View style={styles.activeProgress} />
-            <View style={styles.activeProgress} />
-            <View style={styles.activeProgress} />
-            <View style={styles.activeProgress} />
-            <View style={styles.activeProgress} />
+            <Pressable
+              style={styles.backButton}
+              onPress={() => router.back()}
+            >
+              <Ionicons
+                name="chevron-back"
+                size={22}
+                color="#18181B"
+              />
+            </Pressable>
 
-            <View style={styles.progressLine} />
-            <View style={styles.progressLine} />
+            <View style={styles.stepNumber}>
+              <Text style={styles.stepNumberText}>
+                6 OF 8
+              </Text>
+            </View>
+
           </View>
 
-          {/* HEADER */}
 
-          <View style={styles.header}>
-            <View style={styles.iconBox}>
+          {/* =====================================
+              PROGRESS
+          ===================================== */}
+
+          <View style={styles.progressContainer}>
+
+            {Array.from({ length: 8 }).map(
+              (_, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.progressItem,
+                    index < 6
+                      ? styles.progressActive
+                      : styles.progressInactive,
+                  ]}
+                />
+              )
+            )}
+
+          </View>
+
+
+          {/* =====================================
+              LUMORA BRAND
+          ===================================== */}
+
+          <View style={styles.brandContainer}>
+
+            <Text style={styles.brand}>
+              L U M O R A
+            </Text>
+
+            <View style={styles.brandLineContainer}>
+
+              <View style={styles.brandLine} />
+
               <Ionicons
-                name="sparkles-outline"
-                size={24}
+                name="heart"
+                size={13}
                 color="#FF3D71"
+                style={styles.brandHeart}
               />
+
+              <View style={styles.brandLine} />
+
             </View>
+
+          </View>
+
+
+          {/* =====================================
+              HERO
+          ===================================== */}
+
+          <View style={styles.hero}>
+
+            <Text style={styles.sparkleText}>
+              ✦
+            </Text>
 
             <Text style={styles.eyebrow}>
               YOUR LIFESTYLE
@@ -111,193 +256,441 @@ export default function LifestyleScreen() {
             <Text
               style={[
                 styles.title,
+                isSmall && styles.titleSmall,
                 isTablet && styles.titleTablet,
               ]}
             >
               Your{' '}
-              <Text style={styles.pink}>
-                lifestyle.
+              <Text style={styles.titlePink}>
+                Lifestyle
               </Text>
             </Text>
 
-            <Text style={styles.subtitle}>
-              A few lifestyle details help us show you
-              people who are more compatible with you.
+            <Text style={styles.heroQuestion}>
+              What feels like you?
             </Text>
+
+            <Text style={styles.subtitle}>
+              Your everyday choices tell a little story
+              {'\n'}
+              about who you are.
+            </Text>
+
           </View>
 
-          {/* SECTION */}
+
+          {/* =====================================
+              SMOKING SECTION
+          ===================================== */}
 
           <View style={styles.section}>
-            <View style={styles.sectionHeader}>
+
+            <View style={styles.sectionTop}>
+
               <View>
-                <Text style={styles.sectionTitle}>
-                  Smoking
+                <Text style={styles.sectionLabel}>
+                  ABOUT YOUR VIBE
                 </Text>
 
-                <Text style={styles.sectionSubtitle}>
-                  Tell us what best describes you.
+                <Text style={styles.sectionTitle}>
+                  Smoking
                 </Text>
               </View>
 
               {canContinue && (
-                <View style={styles.completedBadge}>
+                <View style={styles.selectedBadge}>
+
                   <Ionicons
-                    name="checkmark"
-                    size={14}
+                    name="checkmark-circle"
+                    size={13}
                     color="#FF3D71"
                   />
 
-                  <Text style={styles.completedText}>
-                    Selected
+                  <Text style={styles.selectedBadgeText}>
+                    SELECTED
                   </Text>
+
                 </View>
               )}
+
             </View>
 
-            {/* OPTIONS */}
 
-            <View style={styles.options}>
-              {choices.map((item) => {
-                const selected = smoking === item.value;
+            {/* =================================
+                SELECTED HERO
+            ================================= */}
 
-                return (
-                  <Pressable
+            {smoking &&
+              choices
+                .filter(
+                  item => item.value === smoking
+                )
+                .map(item => (
+
+                  <Animated.View
                     key={item.value}
-                    onPress={() => setSmoking(item.value)}
-                    style={[
-                      styles.option,
-                      selected && styles.optionSelected,
-                    ]}
+                    style={{
+                      transform: [
+                        {
+                          scale:
+                            scaleAnimations[
+                              item.value
+                            ],
+                        },
+                      ],
+                    }}
                   >
-                    <View style={styles.optionLeft}>
+
+                    <Pressable
+                      onPress={() =>
+                        selectChoice(item.value)
+                      }
+                      style={styles.selectedCard}
+                    >
+
+                      {/* Decorative circles */}
+
                       <View
-                        style={[
-                          styles.optionIcon,
-                          selected &&
-                            styles.optionIconSelected,
-                        ]}
-                      >
+                        style={styles.selectedGlowOne}
+                      />
+
+                      <View
+                        style={styles.selectedGlowTwo}
+                      />
+
+
+                      {/* Icon */}
+
+                      <View style={styles.selectedIcon}>
+
                         <Ionicons
                           name={item.icon as any}
-                          size={19}
-                          color={
-                            selected
-                              ? '#FF3D71'
-                              : '#71717A'
-                          }
+                          size={34}
+                          color="#FF3D71"
                         />
+
                       </View>
 
-                      <View>
-                        <Text
-                          style={[
-                            styles.optionText,
-                            selected &&
-                              styles.optionTextSelected,
-                          ]}
-                        >
+
+                      {/* Content */}
+
+                      <View style={styles.selectedContent}>
+
+                        <Text style={styles.selectedTitle}>
                           {item.label}
                         </Text>
 
-                        {selected && (
-                          <Text style={styles.optionSelectedHint}>
-                            Your preference
-                          </Text>
-                        )}
-                      </View>
-                    </View>
+                        <Text
+                          style={
+                            styles.selectedDescription
+                          }
+                        >
+                          {item.description}
+                        </Text>
 
-                    <View
-                      style={[
-                        styles.radio,
-                        selected && styles.radioSelected,
-                      ]}
+                        <View style={styles.yourChoice}>
+
+                          <Ionicons
+                            name="heart"
+                            size={9}
+                            color="#FF3D71"
+                          />
+
+                          <Text
+                            style={styles.yourChoiceText}
+                          >
+                            YOUR CHOICE
+                          </Text>
+
+                        </View>
+
+                      </View>
+
+
+                      {/* Check */}
+
+                      <View style={styles.selectedCheck}>
+
+                        <Ionicons
+                          name="checkmark"
+                          size={19}
+                          color="#FFFFFF"
+                        />
+
+                      </View>
+
+                    </Pressable>
+
+                  </Animated.View>
+                ))}
+
+
+            {/* =================================
+                NOTHING SELECTED
+            ================================= */}
+
+            {!smoking && (
+              <View style={styles.emptyHero}>
+
+                <View style={styles.emptyIcon}>
+
+                  <Ionicons
+                    name="sparkles-outline"
+                    size={27}
+                    color="#FF3D71"
+                  />
+
+                </View>
+
+                <View style={styles.emptyTextContainer}>
+
+                  <Text style={styles.emptyTitle}>
+                    Choose your lifestyle
+                  </Text>
+
+                  <Text
+                    style={styles.emptyDescription}
+                  >
+                    Select the option that feels
+                    most like you.
+                  </Text>
+
+                </View>
+
+              </View>
+            )}
+
+
+            {/* =================================
+                OTHER OPTIONS
+            ================================= */}
+
+            <View style={styles.otherOptions}>
+
+              {choices
+                .filter(
+                  item => item.value !== smoking
+                )
+                .map((item) => (
+
+                  <Animated.View
+                    key={item.value}
+                    style={[
+                      styles.optionWrapper,
+                      {
+                        transform: [
+                          {
+                            scale:
+                              scaleAnimations[
+                                item.value
+                              ],
+                          },
+                        ],
+                      },
+                    ]}
+                  >
+
+                    <Pressable
+                      onPress={() =>
+                        selectChoice(item.value)
+                      }
+                      style={styles.optionCard}
                     >
-                      {selected && (
-                        <View style={styles.radioDot} />
-                      )}
-                    </View>
-                  </Pressable>
-                );
-              })}
+
+                      {/* Icon */}
+
+                      <View style={styles.optionIcon}>
+
+                        <Ionicons
+                          name={item.icon as any}
+                          size={21}
+                          color="#18181B"
+                        />
+
+                      </View>
+
+
+                      {/* Text */}
+
+                      <View style={styles.optionContent}>
+
+                        <Text style={styles.optionTitle}>
+                          {item.label}
+                        </Text>
+
+                        <Text
+                          style={
+                            styles.optionDescription
+                          }
+                        >
+                          {item.description}
+                        </Text>
+
+                      </View>
+
+
+                      {/* Radio */}
+
+                      <View style={styles.radio} />
+
+                    </Pressable>
+
+                  </Animated.View>
+
+                ))}
+
             </View>
+
           </View>
 
-          {/* INFO */}
 
-          <View style={styles.info}>
-            <View style={styles.infoIcon}>
+          {/* =====================================
+              PRIVACY
+          ===================================== */}
+
+          <View style={styles.privacy}>
+
+            <View style={styles.privacyIcon}>
+
               <Ionicons
-                name="shield-checkmark-outline"
-                size={20}
+                name="lock-closed"
+                size={15}
                 color="#FF3D71"
               />
+
             </View>
 
-            <View style={styles.infoContent}>
-              <Text style={styles.infoTitle}>
-                Your privacy matters
+            <View
+              style={styles.privacyTextContainer}
+            >
+
+              <Text style={styles.privacyTitle}>
+                Your answer stays private
               </Text>
 
-              <Text style={styles.infoText}>
-                You control what appears on your
-                profile. You can update these details
-                later.
+              <Text style={styles.privacyText}>
+                You control what appears on your profile.
               </Text>
+
             </View>
+
           </View>
 
-          {/* CONTINUE */}
+
+          {/* =====================================
+              SMALL DECORATION
+          ===================================== */}
+
+          <View style={styles.footerDecoration}>
+
+            <Text style={styles.footerScript}>
+              Better{'\n'}
+              People
+            </Text>
+
+            <Ionicons
+              name="heart-outline"
+              size={39}
+              color="#FF3D71"
+              style={styles.footerHeart}
+            />
+
+          </View>
+
+
+          {/* =====================================
+              FOOTER BRAND
+          ===================================== */}
+
+          <View style={styles.footerBrand}>
+
+            <Text style={styles.footerBrandName}>
+              L U M O R A
+            </Text>
+
+            <Text style={styles.footerTagline}>
+              REAL CONNECTIONS. BRIGHTER TOMORROWS.
+            </Text>
+
+          </View>
+
+
+          {/* =====================================
+              CONTINUE BUTTON
+          ===================================== */}
 
           <Pressable
             style={[
               styles.button,
-              !canContinue && styles.buttonDisabled,
+              !canContinue &&
+                styles.buttonDisabled,
             ]}
             onPress={handleContinue}
             disabled={!canContinue}
           >
+
             <Text style={styles.buttonText}>
               Continue
             </Text>
 
-            <Ionicons
-              name="arrow-forward"
-              size={20}
-              color="#FFFFFF"
-            />
+            <View style={styles.buttonArrow}>
+
+              <Ionicons
+                name="arrow-forward"
+                size={19}
+                color="#FFFFFF"
+              />
+
+            </View>
+
           </Pressable>
 
-          {/* TRUST */}
+
+          {/* =====================================
+              SECURITY
+          ===================================== */}
 
           <View style={styles.trust}>
+
             <Ionicons
-              name="lock-closed-outline"
-              size={15}
+              name="shield-checkmark-outline"
+              size={13}
               color="#71717A"
             />
 
             <Text style={styles.trustText}>
               Your information is private and secure
             </Text>
+
           </View>
+
         </View>
       </ScrollView>
     </LinearGradient>
   );
 }
 
+
+/* =====================================================
+   STYLES
+===================================================== */
+
 const styles = StyleSheet.create({
+
   container: {
     flex: 1,
   },
 
+
+  /* =====================================
+     SCROLL
+  ===================================== */
+
   scroll: {
     flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingTop: 55,
-    paddingBottom: 35,
+    paddingHorizontal: 18,
+    paddingTop: 22,
+    paddingBottom: 25,
   },
 
   content: {
@@ -309,334 +702,236 @@ const styles = StyleSheet.create({
     maxWidth: 700,
   },
 
-  /* BACK */
 
-  back: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+  /* =====================================
+     TOP
+  ===================================== */
 
-    backgroundColor: '#FFFFFF',
-
-    justifyContent: 'center',
+  topRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+  },
 
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#FFE6ED',
-
-    shadowColor: '#18181B',
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-
-    elevation: 3,
   },
 
-  /* PROGRESS */
+  stepNumber: {
+    paddingHorizontal: 8,
+  },
 
-  progress: {
+  stepNumberText: {
+    color: '#71717A',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1.7,
+  },
+
+
+  /* =====================================
+     PROGRESS
+  ===================================== */
+
+  progressContainer: {
     flexDirection: 'row',
     gap: 5,
-    marginTop: 25,
+    marginTop: 14,
   },
 
-  activeProgress: {
+  progressItem: {
     flex: 1,
     height: 4,
-    borderRadius: 4,
+    borderRadius: 10,
+  },
+
+  progressActive: {
     backgroundColor: '#FF3D71',
   },
 
-  progressLine: {
-    flex: 1,
-    height: 4,
-    borderRadius: 4,
+  progressInactive: {
     backgroundColor: '#E4E4E7',
   },
 
-  /* HEADER */
 
-  header: {
-    marginTop: 35,
+  /* =====================================
+     BRAND
+  ===================================== */
+
+  brandContainer: {
+    alignItems: 'center',
+    marginTop: 17,
   },
 
-  iconBox: {
-    width: 50,
-    height: 50,
-    borderRadius: 17,
+  brand: {
+    color: '#18181B',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 5,
+  },
 
-    backgroundColor: '#FFE6ED',
-
+  brandLineContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    marginTop: 5,
+  },
 
-    marginBottom: 22,
+  brandLine: {
+    width: 42,
+    height: 1,
+    backgroundColor: '#FF3D71',
+    opacity: 0.35,
+  },
+
+  brandHeart: {
+    marginHorizontal: 7,
+  },
+
+
+  /* =====================================
+     HERO
+  ===================================== */
+
+  hero: {
+    alignItems: 'center',
+    marginTop: 17,
+  },
+
+  sparkleText: {
+    color: '#FF3D71',
+    fontSize: 19,
+    height: 24,
   },
 
   eyebrow: {
     color: '#FF3D71',
-
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '900',
-
-    letterSpacing: 2,
-
-    marginBottom: 10,
+    letterSpacing: 2.5,
+    marginTop: 0,
   },
 
   title: {
     color: '#18181B',
+    fontFamily:
+      Platform.OS === 'android'
+        ? 'serif'
+        : 'Georgia',
+    fontSize: 34,
+    lineHeight: 39,
+    marginTop: 5,
+    textAlign: 'center',
+    fontWeight: '700',
+  },
 
-    fontSize: 39,
-    lineHeight: 44,
-
-    fontWeight: '900',
-
-    letterSpacing: -1,
+  titleSmall: {
+    fontSize: 31,
+    lineHeight: 36,
   },
 
   titleTablet: {
-    fontSize: 44,
-    lineHeight: 50,
+    fontSize: 46,
+    lineHeight: 52,
   },
 
-  pink: {
+  titlePink: {
     color: '#FF3D71',
+  },
+
+  heroQuestion: {
+    color: '#18181B',
+    fontFamily:
+      Platform.OS === 'android'
+        ? 'serif'
+        : 'Georgia',
+    fontSize: 19,
+    fontWeight: '600',
+    marginTop: 2,
+    textAlign: 'center',
   },
 
   subtitle: {
     color: '#71717A',
-
-    fontSize: 15,
-    lineHeight: 23,
-
-    marginTop: 14,
-
-    maxWidth: 560,
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'center',
+    marginTop: 6,
   },
 
-  /* SECTION */
+
+  /* =====================================
+     SECTION
+  ===================================== */
 
   section: {
-    marginTop: 36,
+    marginTop: 20,
   },
 
-  sectionHeader: {
+  sectionTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginBottom: 8,
+  },
 
-    marginBottom: 14,
+  sectionLabel: {
+    color: '#A1A1AA',
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 1.7,
   },
 
   sectionTitle: {
     color: '#18181B',
-
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '900',
+    marginTop: 2,
   },
 
-  sectionSubtitle: {
-    color: '#A1A1AA',
-
-    fontSize: 12,
-
-    marginTop: 4,
-  },
-
-  completedBadge: {
+  selectedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-
-    gap: 4,
-
     backgroundColor: '#FFE6ED',
-
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-
+    paddingHorizontal: 8,
+    paddingVertical: 5,
     borderRadius: 15,
+    gap: 3,
   },
 
-  completedText: {
+  selectedBadgeText: {
     color: '#FF3D71',
-
-    fontSize: 10,
-    fontWeight: '800',
-  },
-
-  /* OPTIONS */
-
-  options: {
-    gap: 10,
-  },
-
-  option: {
-    minHeight: 64,
-
-    borderRadius: 18,
-
-    borderWidth: 1,
-    borderColor: '#E4E4E7',
-
-    backgroundColor: '#FFFFFF',
-
-    paddingHorizontal: 12,
-
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-
-  optionSelected: {
-    borderColor: '#FF3D71',
-    backgroundColor: '#FFF6F8',
-  },
-
-  optionLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-
-    flex: 1,
-  },
-
-  optionIcon: {
-    width: 40,
-    height: 40,
-
-    borderRadius: 14,
-
-    backgroundColor: '#F7F7F8',
-
-    justifyContent: 'center',
-    alignItems: 'center',
-
-    marginRight: 12,
-  },
-
-  optionIconSelected: {
-    backgroundColor: '#FFE6ED',
-  },
-
-  optionText: {
-    color: '#71717A',
-
-    fontSize: 14,
-    fontWeight: '800',
-  },
-
-  optionTextSelected: {
-    color: '#FF3D71',
-  },
-
-  optionSelectedHint: {
-    color: '#A1A1AA',
-
-    fontSize: 10,
-
-    marginTop: 3,
-  },
-
-  /* RADIO */
-
-  radio: {
-    width: 23,
-    height: 23,
-
-    borderRadius: 12,
-
-    borderWidth: 1.5,
-    borderColor: '#D4D4D8',
-
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  radioSelected: {
-    borderColor: '#FF3D71',
-  },
-
-  radioDot: {
-    width: 11,
-    height: 11,
-
-    borderRadius: 6,
-
-    backgroundColor: '#FF3D71',
-  },
-
-  /* INFO */
-
-  info: {
-    marginTop: 22,
-
-    borderRadius: 18,
-
-    backgroundColor: '#FFF6F8',
-
-    padding: 15,
-
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-
-  infoIcon: {
-    width: 40,
-    height: 40,
-
-    borderRadius: 14,
-
-    backgroundColor: '#FFE6ED',
-
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  infoContent: {
-    flex: 1,
-    marginLeft: 11,
-  },
-
-  infoTitle: {
-    color: '#18181B',
-
-    fontSize: 13,
+    fontSize: 8,
     fontWeight: '900',
+    letterSpacing: 0.5,
   },
 
-  infoText: {
-    color: '#71717A',
 
-    fontSize: 12,
-    lineHeight: 18,
+  /* =====================================
+     SELECTED CARD
+  ===================================== */
 
-    marginTop: 3,
-  },
-
-  /* BUTTON */
-
-  button: {
-    height: 60,
-
-    borderRadius: 30,
-
-    backgroundColor: '#FF3D71',
-
+  selectedCard: {
+    minHeight: 130,
+    borderRadius: 23,
+    borderWidth: 1.5,
+    borderColor: '#FF3D71',
+    backgroundColor: '#FFF6F8',
+    overflow: 'hidden',
     flexDirection: 'row',
-
-    justifyContent: 'center',
     alignItems: 'center',
-
-    gap: 10,
-
-    marginTop: 28,
+    paddingHorizontal: 15,
+    position: 'relative',
 
     shadowColor: '#FF3D71',
-    shadowOpacity: 0.20,
-    shadowRadius: 12,
+    shadowOpacity: 0.14,
+    shadowRadius: 14,
     shadowOffset: {
       width: 0,
       height: 6,
@@ -645,36 +940,361 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
 
+  selectedGlowOne: {
+    position: 'absolute',
+    width: 130,
+    height: 130,
+    borderRadius: 70,
+    backgroundColor: '#FFE6ED',
+    left: -45,
+    top: -25,
+    opacity: 0.7,
+  },
+
+  selectedGlowTwo: {
+    position: 'absolute',
+    width: 100,
+    height: 100,
+    borderRadius: 60,
+    backgroundColor: '#FFE6ED',
+    right: -30,
+    bottom: -50,
+    opacity: 0.6,
+  },
+
+  selectedIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#FFE6ED',
+    zIndex: 2,
+  },
+
+  selectedContent: {
+    flex: 1,
+    marginLeft: 13,
+    zIndex: 2,
+    paddingRight: 30,
+  },
+
+  selectedTitle: {
+    color: '#18181B',
+    fontSize: 17,
+    fontWeight: '900',
+  },
+
+  selectedDescription: {
+    color: '#71717A',
+    fontSize: 12,
+    marginTop: 3,
+  },
+
+  yourChoice: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FFE6ED',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 14,
+    marginTop: 7,
+  },
+
+  yourChoiceText: {
+    color: '#FF3D71',
+    fontSize: 7,
+    fontWeight: '900',
+    letterSpacing: 0.7,
+  },
+
+  selectedCheck: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#FF3D71',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'absolute',
+    right: 12,
+    top: 12,
+    zIndex: 3,
+  },
+
+
+  /* =====================================
+     EMPTY HERO
+  ===================================== */
+
+  emptyHero: {
+    minHeight: 90,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#FFE6ED',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+  },
+
+  emptyIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#FFE6ED',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  emptyTextContainer: {
+    flex: 1,
+    marginLeft: 11,
+  },
+
+  emptyTitle: {
+    color: '#18181B',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+
+  emptyDescription: {
+    color: '#71717A',
+    fontSize: 10,
+    marginTop: 3,
+  },
+
+
+  /* =====================================
+     OTHER OPTIONS
+  ===================================== */
+
+  otherOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+  },
+
+  optionWrapper: {
+    width: '48.5%',
+    flexGrow: 1,
+  },
+
+  optionCard: {
+    minHeight: 91,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: '#E4E4E7',
+    padding: 11,
+    justifyContent: 'space-between',
+  },
+
+  optionIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FFE6ED',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  optionContent: {
+    marginTop: 5,
+  },
+
+  optionTitle: {
+    color: '#18181B',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+
+  optionDescription: {
+    color: '#71717A',
+    fontSize: 9,
+    lineHeight: 13,
+    marginTop: 2,
+  },
+
+  radio: {
+    width: 17,
+    height: 17,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    borderColor: '#D4D4D8',
+    position: 'absolute',
+    right: 9,
+    top: 9,
+  },
+
+
+  /* =====================================
+     PRIVACY
+  ===================================== */
+
+  privacy: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: '#FFE6ED',
+    padding: 10,
+    marginTop: 13,
+  },
+
+  privacyIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#FFE6ED',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  privacyTextContainer: {
+    flex: 1,
+    marginLeft: 9,
+  },
+
+  privacyTitle: {
+    color: '#18181B',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+
+  privacyText: {
+    color: '#71717A',
+    fontSize: 9,
+    marginTop: 2,
+  },
+
+
+  /* =====================================
+     DECORATION
+  ===================================== */
+
+  footerDecoration: {
+    height: 42,
+    marginTop: 7,
+    position: 'relative',
+  },
+
+  footerScript: {
+    color: '#FF3D71',
+    fontFamily:
+      Platform.OS === 'android'
+        ? 'serif'
+        : 'Georgia',
+    fontSize: 9,
+    lineHeight: 11,
+    fontStyle: 'italic',
+    opacity: 0.55,
+    marginLeft: 5,
+  },
+
+  footerHeart: {
+    position: 'absolute',
+    right: 8,
+    bottom: 0,
+    opacity: 0.35,
+  },
+
+
+  /* =====================================
+     FOOTER BRAND
+  ===================================== */
+
+  footerBrand: {
+    alignItems: 'center',
+    marginTop: 0,
+  },
+
+  footerBrandName: {
+    color: '#18181B',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 4,
+  },
+
+  footerTagline: {
+    color: '#71717A',
+    fontSize: 6,
+    fontWeight: '700',
+    letterSpacing: 1.4,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+
+
+  /* =====================================
+     CONTINUE BUTTON
+  ===================================== */
+
+  button: {
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#FF3D71',
+    marginTop: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+
+    shadowColor: '#FF3D71',
+    shadowOpacity: 0.20,
+    shadowRadius: 12,
+    shadowOffset: {
+      width: 0,
+      height: 5,
+    },
+
+    elevation: 4,
+  },
+
   buttonDisabled: {
     backgroundColor: '#E4E4E7',
     shadowOpacity: 0,
+    elevation: 0,
   },
 
   buttonText: {
     color: '#FFFFFF',
-
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: 15,
+    fontWeight: '900',
   },
 
-  /* TRUST */
+  buttonArrow: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#FFE6ED',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'absolute',
+    right: 9,
+  },
+
+
+  /* =====================================
+     TRUST
+  ===================================== */
 
   trust: {
     flexDirection: 'row',
-
-    justifyContent: 'center',
     alignItems: 'center',
-
-    gap: 7,
-
-    marginTop: 28,
+    justifyContent: 'center',
+    gap: 5,
+    marginTop: 10,
   },
 
   trustText: {
     color: '#71717A',
-
-    fontSize: 12,
-
-    textAlign: 'center',
+    fontSize: 9,
   },
+
 });
