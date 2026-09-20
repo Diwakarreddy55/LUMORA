@@ -299,9 +299,7 @@ export default function OTPScreen() {
              * =====================================
              */
             if (purpose === 'login') {
-                console.log(
-                    '🔑 LOGIN verification'
-                );
+                console.log('🔑 LOGIN verification');
 
                 const response = await fetch(
                     `${API_URL}/api/auth/login/verify-otp`,
@@ -327,39 +325,29 @@ export default function OTPScreen() {
                     data
                 );
 
-                /*
-                 * API ERROR
-                 */
+                // API ERROR
                 if (!response.ok) {
                     Alert.alert(
                         'Login Failed',
-                        data.message ||
-                        'Invalid OTP'
+                        data.message || 'Invalid OTP'
                     );
 
                     return;
                 }
 
-                /*
-                 * BACKEND SUCCESS CHECK
-                 */
+                // BACKEND SUCCESS CHECK
                 if (!data.success) {
                     Alert.alert(
                         'Login Failed',
-                        data.message ||
-                        'Unable to login'
+                        data.message || 'Unable to login'
                     );
 
                     return;
                 }
 
-                /*
-                 * JWT CHECK
-                 */
+                // JWT CHECK
                 if (!data.token) {
-                    console.error(
-                        '❌ JWT token missing'
-                    );
+                    console.error('❌ JWT token missing');
 
                     Alert.alert(
                         'Login Error',
@@ -369,21 +357,31 @@ export default function OTPScreen() {
                     return;
                 }
 
-                /*
-                 * SAVE JWT TOKEN
-                 */
+                // ==========================================
+                // SAVE JWT TOKEN
+                // IMPORTANT: use "token"
+                // ==========================================
+
                 await AsyncStorage.setItem(
-                    'authToken',
+                    'token',
                     data.token
                 );
 
+                console.log('✅ JWT token saved');
+
+                // Verify token was actually saved
+                const savedToken =
+                    await AsyncStorage.getItem('token');
+
                 console.log(
-                    '✅ JWT token saved'
+                    '🔐 Token exists after save:',
+                    !!savedToken
                 );
 
-                /*
-                 * SAVE USER
-                 */
+                // ==========================================
+                // SAVE USER
+                // ==========================================
+
                 if (data.user) {
                     await AsyncStorage.setItem(
                         'user',
@@ -396,12 +394,10 @@ export default function OTPScreen() {
                     );
                 }
 
-                /*
-                 * SAVE USER ID
-                 *
-                 * Keeping this because your existing
-                 * application was already using user_id.
-                 */
+                // ==========================================
+                // SAVE USER ID
+                // ==========================================
+
                 if (data.user?.id) {
                     await AsyncStorage.setItem(
                         'user_id',
@@ -414,24 +410,18 @@ export default function OTPScreen() {
                     );
                 }
 
-                /*
-                 * LOGIN SUCCESS
-                 *
-                 * This opens:
-                 *
-                 * src/app/dashboard/index.tsx
-                 *
-                 * Route:
-                 * /dashboard
-                 */
-                console.log(
-                    '🎉 LOGIN SUCCESS'
-                );
+                // ==========================================
+                // LOGIN SUCCESS
+                // ==========================================
+
+                console.log('🎉 LOGIN SUCCESS');
 
                 router.replace('/dashboard');
 
                 return;
             }
+
+
 
             /*
              * =====================================

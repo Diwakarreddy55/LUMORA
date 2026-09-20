@@ -436,13 +436,16 @@ export const sendLoginOtp = async (
 };
 
 
-
 export const verifyLoginOtp = async (
   req: Request,
   res: Response
 ) => {
   try {
     const { phone, otp } = req.body;
+
+    // ==========================================
+    // 1. Validate input
+    // ==========================================
 
     if (!phone || !otp) {
       return res.status(400).json({
@@ -451,12 +454,20 @@ export const verifyLoginOtp = async (
       });
     }
 
+    // ==========================================
+    // 2. Validate Indian mobile number
+    // ==========================================
+
     if (!/^\+91\d{10}$/.test(phone)) {
       return res.status(400).json({
         success: false,
         message: 'Invalid Indian mobile number',
       });
     }
+
+    // ==========================================
+    // 3. Validate OTP
+    // ==========================================
 
     if (!/^\d{6}$/.test(otp)) {
       return res.status(400).json({
@@ -465,7 +476,10 @@ export const verifyLoginOtp = async (
       });
     }
 
-    // Get latest pending login OTP
+    // ==========================================
+    // 4. Get latest pending login OTP
+    // ==========================================
+
     const [rows] = await pool.execute(
       `
       SELECT
@@ -499,7 +513,10 @@ export const verifyLoginOtp = async (
       attempts: number;
     };
 
-    // Check attempts
+    // ==========================================
+    // 5. Check OTP attempts
+    // ==========================================
+
     if (otpRecord.attempts >= 5) {
       await pool.execute(
         `
@@ -516,9 +533,13 @@ export const verifyLoginOtp = async (
       });
     }
 
-    // Check expiry
+    // ==========================================
+    // 6. Check OTP expiry
+    // ==========================================
+
     if (
-      new Date(otpRecord.expires_at).getTime() < Date.now()
+      new Date(otpRecord.expires_at).getTime() <
+      Date.now()
     ) {
       await pool.execute(
         `
@@ -535,7 +556,10 @@ export const verifyLoginOtp = async (
       });
     }
 
-    // Increase attempts
+    // ==========================================
+    // 7. Increase OTP attempts
+    // ==========================================
+
     await pool.execute(
       `
       UPDATE otp_verifications
@@ -545,7 +569,10 @@ export const verifyLoginOtp = async (
       [otpRecord.id]
     );
 
-    // Compare OTP
+    // ==========================================
+    // 8. Compare OTP
+    // ==========================================
+
     if (otp !== otpRecord.otp) {
       return res.status(400).json({
         success: false,
@@ -553,7 +580,10 @@ export const verifyLoginOtp = async (
       });
     }
 
-    // Mark OTP verified
+    // ==========================================
+    // 9. Mark OTP as verified
+    // ==========================================
+
     await pool.execute(
       `
       UPDATE otp_verifications
@@ -565,16 +595,23 @@ export const verifyLoginOtp = async (
       [otpRecord.id]
     );
 
-    // Get user
+    // ==========================================
+    // 10. Get user + profile name
+    // ==========================================
+
     const [users] = await pool.execute(
       `
       SELECT
-        id,
-        phone,
-        phone_verified,
-        account_status
-      FROM users
-      WHERE phone = ?
+        u.id,
+        u.phone,
+        u.phone_verified,
+        u.account_status,
+        up.first_name,
+        up.last_name
+      FROM users u
+      LEFT JOIN user_profiles up
+        ON up.user_id = u.id
+      WHERE u.phone = ?
       LIMIT 1
       `,
       [phone]
@@ -592,9 +629,40 @@ export const verifyLoginOtp = async (
       phone: string;
       phone_verified: number;
       account_status: string;
+      first_name: string | null;
+      last_name: string | null;
     };
 
-    // Create JWT token
+    // ==========================================
+    // 11. Check account status
+    // ==========================================
+
+    if (user.account_status !== 'active') {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account is not active.',
+      });
+    }
+
+    // ==========================================
+    // 12. Create full name
+    // ==========================================
+
+    const name = [
+      user.first_name,
+      user.last_name,
+    ]
+      .filter(
+        (value): value is string =>
+          Boolean(value && value.trim())
+      )
+      .join(' ')
+      .trim();
+
+    // ==========================================
+    // 13. Create JWT token
+    // ==========================================
+
     const token = jwt.sign(
       {
         userId: user.id,
@@ -606,7 +674,10 @@ export const verifyLoginOtp = async (
       }
     );
 
-    // Update last login
+    // ==========================================
+    // 14. Update last login
+    // ==========================================
+
     await pool.execute(
       `
       UPDATE users
@@ -616,22 +687,37 @@ export const verifyLoginOtp = async (
       [user.id]
     );
 
+    // ==========================================
+    // 15. Logs
+    // ==========================================
+
     console.log('✅ Login successful');
     console.log('👤 User ID:', user.id);
+    console.log('👤 User Name:', name || 'User');
+
+    // ==========================================
+    // 16. Success response
+    // ==========================================
 
     return res.status(200).json({
       success: true,
       message: 'Login successful',
+
       token,
+
       user: {
         id: user.id,
+        name: name || 'User',
         phone: user.phone,
         phone_verified: true,
       },
     });
 
   } catch (error) {
-    console.error('Verify Login OTP Error:', error);
+    console.error(
+      'Verify Login OTP Error:',
+      error
+    );
 
     return res.status(500).json({
       success: false,
@@ -639,3 +725,4 @@ export const verifyLoginOtp = async (
     });
   }
 };
+
