@@ -16,7 +16,7 @@ import pool from "./config/database";
 import userProfileRoutes from "./routes/userProfileRoutes";
 import userRoutes from "./routes/userRoutes";
 import chatRoutes from "./routes/chatRoutes";
-
+import callRoutes from "./routes/callRoutes";
 import {
   initializeChatSocket,
 } from "./chatSocket";
@@ -63,6 +63,11 @@ app.use(
   userRoutes
 );
 
+
+app.use(
+  "/api/calls",
+  callRoutes
+);
 /*
 |--------------------------------------------------------------------------
 | Chat routes
