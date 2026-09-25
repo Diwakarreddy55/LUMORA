@@ -17,6 +17,8 @@ import userProfileRoutes from "./routes/userProfileRoutes";
 import userRoutes from "./routes/userRoutes";
 import chatRoutes from "./routes/chatRoutes";
 import callRoutes from "./routes/callRoutes";
+import profileRoutes from "./routes/profileRoutes";
+
 import {
   initializeChatSocket,
 } from "./chatSocket";
@@ -79,6 +81,8 @@ app.use(
   chatRoutes
 );
 
+
+app.use("/api/profile", profileRoutes);
 /*
 |--------------------------------------------------------------------------
 | Create HTTP server

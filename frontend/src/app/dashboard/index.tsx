@@ -19,8 +19,13 @@ import { router } from "expo-router";
 
 import ResponsiveScreen from "../../components/ResponsiveScreen";
 
-const API_URL =
-  process.env.EXPO_PUBLIC_API_URL;
+import SideMenu from "../../components/SideMenu";
+
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
+
+/* ============================================================
+   TYPES
+============================================================ */
 
 type Person = {
   id: number;
@@ -32,25 +37,24 @@ type Person = {
   education: string | null;
   height_cm: number | null;
   relationship_status: string | null;
+
   image: string | null;
   images: string[];
+
   distance: number;
   location_match: string;
+
   city: string | null;
   state: string | null;
   country: string | null;
+
   online: boolean;
+
   likes_count: number;
   comments_count: number;
 
-  /**
-   * Current user's action
-   */
   my_action?: "like" | "dislike" | null;
 
-  /**
-   * True when both users liked each other
-   */
   matched?: boolean;
 };
 
@@ -67,38 +71,32 @@ type UserAction = {
   matched?: boolean;
 };
 
+/* ============================================================
+   HOME SCREEN
+============================================================ */
+
 export default function HomeScreen() {
-  const [activeTab, setActiveTab] =
-    useState("nearby");
+  const [people, setPeople] = useState<Person[]>([]);
 
-  const [people, setPeople] =
-    useState<Person[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const [loading, setLoading] =
-    useState(true);
+  const [userName, setUserName] = useState("User");
 
-  const [userName, setUserName] =
-    useState("User");
+  const [currentHour, setCurrentHour] = useState(
+    new Date().getHours()
+  );
 
-  const [currentHour, setCurrentHour] =
-    useState(new Date().getHours());
+  const [menuVisible, setMenuVisible] = useState(false);
 
-  /**
-   * ------------------------------------------------
-   * INITIAL LOAD
-   * ------------------------------------------------
-   */
+  /* ==========================================================
+     INITIAL LOAD
+  ========================================================== */
 
   useEffect(() => {
     loadDashboard();
 
-    /**
-     * Update greeting every 60 seconds.
-     */
     const timer = setInterval(() => {
-      setCurrentHour(
-        new Date().getHours()
-      );
+      setCurrentHour(new Date().getHours());
     }, 60 * 1000);
 
     return () => {
@@ -106,11 +104,9 @@ export default function HomeScreen() {
     };
   }, []);
 
-  /**
-   * ------------------------------------------------
-   * LOAD EVERYTHING
-   * ------------------------------------------------
-   */
+  /* ==========================================================
+     LOAD DASHBOARD
+  ========================================================== */
 
   const loadDashboard = async () => {
     await Promise.all([
@@ -119,40 +115,22 @@ export default function HomeScreen() {
     ]);
   };
 
-  /**
-   * ------------------------------------------------
-   * CURRENT USER
-   * ------------------------------------------------
-   */
+  /* ==========================================================
+     CURRENT USER
+  ========================================================== */
 
   const loadCurrentUser = async () => {
     try {
-      const userData =
-        await AsyncStorage.getItem(
-          "user"
-        );
+      const userData = await AsyncStorage.getItem("user");
 
       if (!userData) {
-        console.log(
-          "No logged-in user data found"
-        );
-
         setUserName("User");
-
         return;
       }
 
-      const user: LoggedInUser =
-        JSON.parse(userData);
+      const user: LoggedInUser = JSON.parse(userData);
 
-      console.log(
-        "Logged-in user:",
-        user
-      );
-
-      setUserName(
-        user.name || "User"
-      );
+      setUserName(user.name || "User");
     } catch (error) {
       console.error(
         "Failed to load current user:",
@@ -163,11 +141,9 @@ export default function HomeScreen() {
     }
   };
 
-  /**
-   * ------------------------------------------------
-   * GREETING
-   * ------------------------------------------------
-   */
+  /* ==========================================================
+     GREETING
+  ========================================================== */
 
   const getGreeting = () => {
     const hour = currentHour;
@@ -187,11 +163,9 @@ export default function HomeScreen() {
     return "Good night";
   };
 
-  /**
-   * ------------------------------------------------
-   * IMAGE URL
-   * ------------------------------------------------
-   */
+  /* ==========================================================
+     IMAGE URL
+  ========================================================== */
 
   const getImageUrl = (
     image: string | null
@@ -210,11 +184,9 @@ export default function HomeScreen() {
     );
   };
 
-  /**
-   * ------------------------------------------------
-   * FETCH DASHBOARD USERS
-   * ------------------------------------------------
-   */
+  /* ==========================================================
+     FETCH DASHBOARD USERS
+  ========================================================== */
 
   const fetchDashboardUsers = async () => {
     try {
@@ -231,9 +203,7 @@ export default function HomeScreen() {
       }
 
       const token =
-        await AsyncStorage.getItem(
-          "token"
-        );
+        await AsyncStorage.getItem("token");
 
       if (!token) {
         console.log(
@@ -245,14 +215,16 @@ export default function HomeScreen() {
         return;
       }
 
-      /**
-       * Get dashboard users
-       */
+      /* ------------------------------------------------------
+         DASHBOARD API
+      ------------------------------------------------------ */
+
       const dashboardResponse =
         await fetch(
           `${API_URL}/api/users/dashboard`,
           {
             method: "GET",
+
             headers: {
               "Content-Type":
                 "application/json",
@@ -265,11 +237,6 @@ export default function HomeScreen() {
 
       const dashboardData =
         await dashboardResponse.json();
-
-      console.log(
-        "Dashboard response:",
-        dashboardData
-      );
 
       if (
         !dashboardResponse.ok ||
@@ -285,16 +252,13 @@ export default function HomeScreen() {
         return;
       }
 
-      /**
-       * Dashboard users
-       */
       const dashboardUsers: Person[] =
         dashboardData.users || [];
 
-      /**
-       * Get current user's
-       * Like / Dislike actions
-       */
+      /* ------------------------------------------------------
+         USER ACTIONS
+      ------------------------------------------------------ */
+
       let actions: UserAction[] = [];
 
       try {
@@ -303,6 +267,7 @@ export default function HomeScreen() {
             `${API_URL}/api/users/actions`,
             {
               method: "GET",
+
               headers: {
                 "Content-Type":
                   "application/json",
@@ -316,11 +281,6 @@ export default function HomeScreen() {
         const actionsData =
           await actionsResponse.json();
 
-        console.log(
-          "User actions response:",
-          actionsData
-        );
-
         if (
           actionsResponse.ok &&
           actionsData.success
@@ -329,65 +289,49 @@ export default function HomeScreen() {
             actionsData.actions || [];
         }
       } catch (error) {
-        /**
-         * If actions API is not available,
-         * dashboard still works.
-         */
         console.error(
           "Actions API error:",
           error
         );
       }
 
-      /**
-       * Create action map
-       */
+      /* ------------------------------------------------------
+         ACTION MAP
+      ------------------------------------------------------ */
+
       const actionMap =
-        new Map<
-          number,
-          UserAction
-        >();
+        new Map<number, UserAction>();
 
-      actions.forEach(
-        (action) => {
-          actionMap.set(
-            Number(
-              action.to_user_id
-            ),
-            action
-          );
-        }
-      );
-
-      /**
-       * Merge dashboard users
-       * with current user's actions
-       */
-      const usersWithActions =
-        dashboardUsers.map(
-          (person) => {
-            const action =
-              actionMap.get(
-                Number(person.id)
-              );
-
-            return {
-              ...person,
-
-              my_action:
-                action?.action ||
-                null,
-
-              matched:
-                action?.matched ||
-                false,
-            };
-          }
+      actions.forEach((action) => {
+        actionMap.set(
+          Number(action.to_user_id),
+          action
         );
+      });
 
-      setPeople(
-        usersWithActions
-      );
+      /* ------------------------------------------------------
+         MERGE USERS + ACTIONS
+      ------------------------------------------------------ */
+
+      const usersWithActions =
+        dashboardUsers.map((person) => {
+          const action =
+            actionMap.get(
+              Number(person.id)
+            );
+
+          return {
+            ...person,
+
+            my_action:
+              action?.action || null,
+
+            matched:
+              action?.matched || false,
+          };
+        });
+
+      setPeople(usersWithActions);
     } catch (error) {
       console.error(
         "Dashboard API error:",
@@ -400,11 +344,9 @@ export default function HomeScreen() {
     }
   };
 
-  /**
-   * ------------------------------------------------
-   * LIKE / DISLIKE API
-   * ------------------------------------------------
-   */
+  /* ==========================================================
+     LIKE / DISLIKE
+  ========================================================== */
 
   const handleUserAction = async (
     personId: number,
@@ -420,9 +362,7 @@ export default function HomeScreen() {
       }
 
       const token =
-        await AsyncStorage.getItem(
-          "token"
-        );
+        await AsyncStorage.getItem("token");
 
       if (!token) {
         Alert.alert(
@@ -433,16 +373,6 @@ export default function HomeScreen() {
         return;
       }
 
-      console.log(
-        `➡️ ${action} user:`,
-        personId
-      );
-
-      /**
-       * API
-       *
-       * POST /api/users/action
-       */
       const response =
         await fetch(
           `${API_URL}/api/users/action`,
@@ -470,11 +400,6 @@ export default function HomeScreen() {
       const data =
         await response.json();
 
-      console.log(
-        "Action API response:",
-        data
-      );
-
       if (
         !response.ok ||
         !data.success
@@ -482,51 +407,41 @@ export default function HomeScreen() {
         Alert.alert(
           "Action Failed",
           data?.message ||
-            "Unable to update action."
+          "Unable to update action."
         );
 
         return;
       }
 
-      /**
-       * Backend returns:
-       *
-       * data: {
-       *   from_user_id,
-       *   to_user_id,
-       *   action,
-       *   matched,
-       *   match_id
-       * }
-       */
-
       const matched =
         data.data?.matched === true;
 
-      /**
-       * Update UI immediately.
-       */
+      /* ------------------------------------------------------
+         UPDATE UI
+      ------------------------------------------------------ */
+
       setPeople(
         (currentPeople) =>
           currentPeople.map(
             (person) =>
               person.id === personId
                 ? {
-                    ...person,
+                  ...person,
 
-                    my_action:
-                      action,
+                  my_action:
+                    action,
 
-                    matched:
-                      matched,
-                  }
+                  matched:
+                    matched,
+                }
                 : person
           )
       );
 
-      /**
-       * MATCH
-       */
+      /* ------------------------------------------------------
+         MATCH
+      ------------------------------------------------------ */
+
       if (matched) {
         Alert.alert(
           "It's a Match! 🎉❤️",
@@ -539,16 +454,14 @@ export default function HomeScreen() {
             {
               text: "Chat",
               onPress: () =>
-                openChat(
-                  personId
-                ),
+                openChat(personId),
             },
           ]
         );
       }
     } catch (error) {
       console.error(
-        "❌ User action error:",
+        "User action error:",
         error
       );
 
@@ -559,11 +472,9 @@ export default function HomeScreen() {
     }
   };
 
-  /**
-   * ------------------------------------------------
-   * LIKE
-   * ------------------------------------------------
-   */
+  /* ==========================================================
+     LIKE
+  ========================================================== */
 
   const handleLike = (
     personId: number
@@ -574,11 +485,9 @@ export default function HomeScreen() {
     );
   };
 
-  /**
-   * ------------------------------------------------
-   * DISLIKE
-   * ------------------------------------------------
-   */
+  /* ==========================================================
+     DISLIKE
+  ========================================================== */
 
   const handlePass = (
     personId: number
@@ -589,11 +498,9 @@ export default function HomeScreen() {
     );
   };
 
-  /**
-   * ------------------------------------------------
-   * OPEN PROFILE
-   * ------------------------------------------------
-   */
+  /* ==========================================================
+     OPEN PROFILE
+  ========================================================== */
 
   const openProfile = (
     personId: number
@@ -603,11 +510,9 @@ export default function HomeScreen() {
     );
   };
 
-  /**
-   * ------------------------------------------------
-   * OPEN CHAT
-   * ------------------------------------------------
-   */
+  /* ==========================================================
+     OPEN CHAT
+  ========================================================== */
 
   const openChat = (
     personId: number
@@ -617,56 +522,92 @@ export default function HomeScreen() {
     );
   };
 
-  /**
-   * ------------------------------------------------
-   * RENDER
-   * ------------------------------------------------
-   */
+  /* ==========================================================
+     SEARCH
+  ========================================================== */
+
+  const openSearch = () => {
+    router.push("/Search" as any);
+  };
+
+  /* ==========================================================
+     CHATS
+  ========================================================== */
+
+  const openChats = () => {
+    router.push("/chat/userlist" as any);
+  };
+
+  /* ==========================================================
+     PROFILE
+  ========================================================== */
+
+  const openMyProfile = () => {
+    router.push("/profile" as any);
+  };
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
 
   return (
     <ResponsiveScreen>
-      <View
-        style={styles.screen}
-      >
+      <View style={styles.screen}>
+
+        {/* ==================================================
+            MAIN CONTENT
+        ================================================== */}
+
         <ScrollView
-          showsVerticalScrollIndicator={
-            false
-          }
+          showsVerticalScrollIndicator={false}
           contentContainerStyle={
             styles.container
           }
         >
-          {/* HEADER */}
 
-          <View
-            style={styles.header}
-          >
+          {/* ==================================================
+              HEADER
+          ================================================== */}
+
+          <View style={styles.header}>
+
+            {/* HAMBURGER */}
+
             <Pressable
-              style={
-                styles.menuButton
+              style={styles.menuButton}
+              onPress={() =>
+                setMenuVisible(true)
               }
             >
               <Ionicons
                 name="menu-outline"
-                size={24}
+                size={25}
                 color="#18181B"
               />
             </Pressable>
 
-            <Text
-              style={styles.logo}
-            >
+            {/* LOGO */}
+
+            <Text style={styles.logo}>
               LUMORA
             </Text>
+
+            {/* HEADER RIGHT */}
 
             <View
               style={
                 styles.headerRight
               }
             >
+
               <Pressable
                 style={
                   styles.headerIcon
+                }
+                onPress={() =>
+                  router.push(
+                    "/likes" as any
+                  )
                 }
               >
                 <Ionicons
@@ -679,6 +620,11 @@ export default function HomeScreen() {
               <Pressable
                 style={
                   styles.headerIcon
+                }
+                onPress={() =>
+                  router.push(
+                    "/notifications" as any
+                  )
                 }
               >
                 <Ionicons
@@ -693,14 +639,16 @@ export default function HomeScreen() {
                   }
                 />
               </Pressable>
+
             </View>
           </View>
 
-          {/* GREETING */}
+          {/* ==================================================
+              GREETING
+          ================================================== */}
 
-          <View
-            style={styles.greeting}
-          >
+          <View style={styles.greeting}>
+
             <Text
               style={
                 styles.greetingText
@@ -710,9 +658,8 @@ export default function HomeScreen() {
             </Text>
 
             <Text
-              style={
-                styles.userName
-              }
+              style={styles.userName}
+              numberOfLines={1}
             >
               {userName}
             </Text>
@@ -723,73 +670,26 @@ export default function HomeScreen() {
               Find someone who feels
               right.
             </Text>
+
           </View>
 
-          {/* TABS */}
-
-          <View
-            style={styles.tabs}
-          >
-            <TabButton
-              title="Nearby"
-              active={
-                activeTab ===
-                "nearby"
-              }
-              onPress={() =>
-                setActiveTab(
-                  "nearby"
-                )
-              }
-            />
-
-            <TabButton
-              title="New"
-              active={
-                activeTab ===
-                "new"
-              }
-              onPress={() =>
-                setActiveTab(
-                  "new"
-                )
-              }
-            />
-
-            <TabButton
-              title="For You"
-              active={
-                activeTab ===
-                "foryou"
-              }
-              onPress={() =>
-                setActiveTab(
-                  "foryou"
-                )
-              }
-            />
-          </View>
-
-          {/* SECTION HEADER */}
+          {/* ==================================================
+              DISCOVER HEADER
+          ================================================== */}
 
           <View
             style={
-              styles.sectionHeader
+              styles.discoverHeader
             }
           >
+
             <View>
               <Text
                 style={
                   styles.sectionTitle
                 }
               >
-                {activeTab ===
-                "nearby"
-                  ? "People near you"
-                  : activeTab ===
-                    "new"
-                  ? "New people"
-                  : "Picked for you"}
+                Discover people
               </Text>
 
               <Text
@@ -797,13 +697,29 @@ export default function HomeScreen() {
                   styles.sectionSubtitle
                 }
               >
-                Discover your next
-                connection
+                People who may be a good
+                connection for you
               </Text>
             </View>
+
+            <Pressable
+              style={
+                styles.filterButton
+              }
+              onPress={openSearch}
+            >
+              <Ionicons
+                name="options-outline"
+                size={19}
+                color="#FF3D71"
+              />
+            </Pressable>
+
           </View>
 
-          {/* LOADING */}
+          {/* ==================================================
+              LOADING
+          ================================================== */}
 
           {loading && (
             <View
@@ -811,23 +727,39 @@ export default function HomeScreen() {
                 styles.loadingContainer
               }
             >
-              <ActivityIndicator
-                size="large"
-                color="#FF3D71"
-              />
+              <View
+                style={
+                  styles.loadingCircle
+                }
+              >
+                <ActivityIndicator
+                  size="small"
+                  color="#FF3D71"
+                />
+              </View>
+
+              <Text
+                style={
+                  styles.loadingTitle
+                }
+              >
+                Finding people
+              </Text>
 
               <Text
                 style={
                   styles.loadingText
                 }
               >
-                Finding people near
-                you...
+                Looking for people
+                near you...
               </Text>
             </View>
           )}
 
-          {/* EMPTY */}
+          {/* ==================================================
+              EMPTY
+          ================================================== */}
 
           {!loading &&
             people.length === 0 && (
@@ -836,11 +768,18 @@ export default function HomeScreen() {
                   styles.emptyContainer
                 }
               >
-                <Ionicons
-                  name="people-outline"
-                  size={60}
-                  color="#FF3D71"
-                />
+
+                <View
+                  style={
+                    styles.emptyIcon
+                  }
+                >
+                  <Ionicons
+                    name="people-outline"
+                    size={40}
+                    color="#FF3D71"
+                  />
+                </View>
 
                 <Text
                   style={
@@ -856,8 +795,8 @@ export default function HomeScreen() {
                   }
                 >
                   We couldn't find
-                  anyone near you right
-                  now.
+                  anyone near you
+                  right now.
                 </Text>
 
                 <Pressable
@@ -876,29 +815,35 @@ export default function HomeScreen() {
                     Try Again
                   </Text>
                 </Pressable>
+
               </View>
             )}
 
-          {/* PEOPLE */}
+          {/* ==================================================
+              PEOPLE
+          ================================================== */}
 
           {!loading &&
             people.map((item) => (
+
               <Pressable
                 key={item.id}
                 style={styles.card}
                 onPress={() =>
-                  openProfile(
-                    item.id
-                  )
+                  openProfile(item.id)
                 }
               >
-                {/* IMAGE */}
+
+                {/* ==================================================
+                    IMAGE
+                ================================================== */}
 
                 <View
                   style={
                     styles.cardImageWrap
                   }
                 >
+
                   {item.image ? (
                     <Image
                       source={{
@@ -921,11 +866,19 @@ export default function HomeScreen() {
                     >
                       <Ionicons
                         name="person"
-                        size={70}
+                        size={65}
                         color="#FF3D71"
                       />
                     </View>
                   )}
+
+                  {/* IMAGE GRADIENT-LIKE OVERLAY */}
+
+                  <View
+                    style={
+                      styles.imageBottomOverlay
+                    }
+                  />
 
                   {/* ONLINE */}
 
@@ -951,20 +904,47 @@ export default function HomeScreen() {
                     </View>
                   )}
 
-                  {/* IMAGE OVERLAY */}
+                  {/* PHOTO COUNT */}
+
+                  {item.images &&
+                    item.images.length >
+                    1 && (
+                      <View
+                        style={
+                          styles.photoCount
+                        }
+                      >
+                        <Ionicons
+                          name="images-outline"
+                          size={13}
+                          color="#FFFFFF"
+                        />
+
+                        <Text
+                          style={
+                            styles.photoCountText
+                          }
+                        >
+                          {
+                            item.images.length
+                          }
+                        </Text>
+                      </View>
+                    )}
+
+                  {/* IMAGE INFO */}
 
                   <View
                     style={
-                      styles.cardOverlay
+                      styles.imageInfo
                     }
                   >
+
                     <Text
                       style={
                         styles.cardName
                       }
-                      numberOfLines={
-                        1
-                      }
+                      numberOfLines={1}
                     >
                       {item.name}
                       {item.age
@@ -974,105 +954,119 @@ export default function HomeScreen() {
 
                     <View
                       style={
-                        styles.cardLocationRow
+                        styles.locationRow
                       }
                     >
                       <Ionicons
-                        name="location"
-                        size={13}
+                        name="location-outline"
+                        size={14}
                         color="#FFFFFF"
                       />
 
                       <Text
                         style={
-                          styles.cardLocationText
+                          styles.locationText
                         }
-                        numberOfLines={
-                          1
-                        }
+                        numberOfLines={1}
                       >
-                        {item.distance}{" "}
-                        km away
+                        {item.distance} km
+                        away
                         {item.city
                           ? ` · ${item.city}`
                           : ""}
                       </Text>
                     </View>
+
                   </View>
                 </View>
 
-                {/* CARD INFO */}
+                {/* ==================================================
+                    CARD INFO
+                ================================================== */}
 
                 <View
                   style={
                     styles.cardInfo
                   }
                 >
+
+                  {/* BIO */}
+
                   {!!item.bio && (
                     <Text
                       style={
                         styles.cardBio
                       }
-                      numberOfLines={
-                        2
-                      }
+                      numberOfLines={2}
                     >
                       {item.bio}
                     </Text>
                   )}
 
+                  {/* TAGS */}
+
                   {(item.occupation ||
                     item.relationship_status) && (
-                    <View
-                      style={
-                        styles.cardTags
-                      }
-                    >
-                      {!!item.occupation && (
-                        <View
-                          style={
-                            styles.tag
-                          }
-                        >
-                          <Ionicons
-                            name="briefcase-outline"
-                            size={12}
-                            color="#FF3D71"
-                          />
+                      <View
+                        style={
+                          styles.cardTags
+                        }
+                      >
 
-                          <Text
+                        {!!item.occupation && (
+                          <View
                             style={
-                              styles.tagText
+                              styles.tag
                             }
                           >
-                            {
-                              item.occupation
-                            }
-                          </Text>
-                        </View>
-                      )}
+                            <Ionicons
+                              name="briefcase-outline"
+                              size={13}
+                              color="#FF3D71"
+                            />
 
-                      {!!item.relationship_status && (
-                        <View
-                          style={
-                            styles.tag
-                          }
-                        >
-                          <Text
+                            <Text
+                              style={
+                                styles.tagText
+                              }
+                              numberOfLines={1}
+                            >
+                              {
+                                item.occupation
+                              }
+                            </Text>
+                          </View>
+                        )}
+
+                        {!!item.relationship_status && (
+                          <View
                             style={
-                              styles.tagText
+                              styles.tag
                             }
                           >
-                            {
-                              item.relationship_status
-                            }
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                  )}
+                            <Ionicons
+                              name="heart-outline"
+                              size={13}
+                              color="#FF3D71"
+                            />
 
-                  {/* MATCH STATUS */}
+                            <Text
+                              style={
+                                styles.tagText
+                              }
+                              numberOfLines={1}
+                            >
+                              {
+                                item.relationship_status
+                              }
+                            </Text>
+                          </View>
+                        )}
+
+                      </View>
+                    )}
+
+                  {/* MATCH */}
 
                   {item.matched && (
                     <View
@@ -1091,70 +1085,66 @@ export default function HomeScreen() {
                           styles.matchText
                         }
                       >
-                        Matched ❤️
+                        Matched
                       </Text>
                     </View>
                   )}
 
-                  {/* ACTION BUTTONS */}
+                  {/* ==================================================
+                      ACTIONS
+                  ================================================== */}
 
                   <View
                     style={
                       styles.actionsRow
                     }
                   >
+
                     {/* DISLIKE */}
 
                     <Pressable
                       style={[
-                        styles.actionBtn,
-
+                        styles.actionButton,
                         item.my_action ===
-                        "dislike"
-                          ? styles.dislikedBtn
-                          : styles.dislikeBtn,
+                          "dislike"
+                          ? styles.dislikedButton
+                          : styles.dislikeButton,
                       ]}
-                      onPress={(
-                        event
-                      ) => {
+                      onPress={(event) => {
                         event.stopPropagation();
 
                         handlePass(
                           item.id
                         );
                       }}
-                      hitSlop={6}
                     >
                       <Ionicons
                         name={
                           item.my_action ===
-                          "dislike"
+                            "dislike"
                             ? "close-circle"
-                            : "close"
+                            : "close-outline"
                         }
-                        size={18}
+                        size={19}
                         color={
                           item.my_action ===
-                          "dislike"
+                            "dislike"
                             ? "#FFFFFF"
-                            : "#71717A"
+                            : "#52525B"
                         }
                       />
 
                       <Text
-                        style={[
-                          styles.dislikeText,
-
-                          item.my_action ===
-                          "dislike"
-                            ? styles.dislikedText
-                            : null,
-                        ]}
+                        style={
+                          item.my_action === "dislike"
+                            ? styles.whiteActionText
+                            : styles.darkActionText
+                        }
                       >
                         {item.my_action ===
-                        "dislike"
-                          ? "Disliked"
-                          : "Dislike"}
+                          "dislike"
+                          ? "Passed"
+                          : "Pass"}
                       </Text>
                     </Pressable>
 
@@ -1162,19 +1152,16 @@ export default function HomeScreen() {
 
                     <Pressable
                       style={[
-                        styles.actionBtn,
-                        styles.chatBtn,
+                        styles.actionButton,
+                        styles.chatButton,
                       ]}
-                      onPress={(
-                        event
-                      ) => {
+                      onPress={(event) => {
                         event.stopPropagation();
 
                         openChat(
                           item.id
                         );
                       }}
-                      hitSlop={6}
                     >
                       <Ionicons
                         name="chatbubble-outline"
@@ -1184,7 +1171,7 @@ export default function HomeScreen() {
 
                       <Text
                         style={
-                          styles.chatText
+                          styles.chatActionText
                         }
                       >
                         Chat
@@ -1195,28 +1182,25 @@ export default function HomeScreen() {
 
                     <Pressable
                       style={[
-                        styles.actionBtn,
-
+                        styles.actionButton,
+                        styles.likeButton,
                         item.my_action ===
-                        "like"
-                          ? styles.likedBtn
-                          : styles.likeBtn,
+                          "like"
+                          ? styles.likedButton
+                          : null,
                       ]}
-                      onPress={(
-                        event
-                      ) => {
+                      onPress={(event) => {
                         event.stopPropagation();
 
                         handleLike(
                           item.id
                         );
                       }}
-                      hitSlop={6}
                     >
                       <Ionicons
                         name={
                           item.my_action ===
-                          "like"
+                            "like"
                             ? "heart"
                             : "heart-outline"
                         }
@@ -1226,17 +1210,19 @@ export default function HomeScreen() {
 
                       <Text
                         style={
-                          styles.likeText
+                          styles.likeActionText
                         }
                       >
                         {item.my_action ===
-                        "like"
+                          "like"
                           ? "Liked"
                           : "Like"}
                       </Text>
                     </Pressable>
+
                   </View>
                 </View>
+
               </Pressable>
             ))}
 
@@ -1245,106 +1231,82 @@ export default function HomeScreen() {
               styles.bottomSpace
             }
           />
+
         </ScrollView>
 
-        {/* BOTTOM NAVIGATION */}
+        {/* ==================================================
+            BOTTOM NAVIGATION
+        ================================================== */}
 
         <View
           style={
             styles.bottomNav
           }
         >
+
+          {/* HOME */}
+
           <BottomButton
-            icon="heart-outline"
-            active={false}
-            label="Likes"
+            icon="home"
+            label="Home"
+            active={true}
             onPress={() =>
-              router.push(
-                "/" as any
+              router.replace(
+                "/dashboard" as any
               )
             }
           />
 
+          {/* SEARCH */}
+
           <BottomButton
-            icon="location-outline"
-            active={true}
-            label="Nearby"
-            onPress={() =>
-              setActiveTab(
-                "nearby"
-              )
-            }
+            icon="search-outline"
+            label="Search"
+            active={false}
+            onPress={openSearch}
           />
+
+          {/* CHAT */}
 
           <BottomButton
             icon="chatbubble-outline"
-            active={false}
             label="Chat"
-            onPress={() =>
-              router.push(
-                "/" as any
-              )
-            }
+            active={false}
+            onPress={openChats}
           />
+
+          {/* PROFILE */}
 
           <BottomButton
             icon="person-outline"
-            active={false}
             label="Profile"
-            onPress={() =>
-              router.push(
-                "/" as any
-              )
+            active={false}
+            onPress={
+              openMyProfile
             }
           />
+
         </View>
+
+        {/* ==================================================
+            SIDE MENU
+        ================================================== */}
+
+        <SideMenu
+          visible={menuVisible}
+          onClose={() =>
+            setMenuVisible(false)
+          }
+        />
+
       </View>
     </ResponsiveScreen>
   );
 }
 
-/**
- * ============================================================
- * TAB BUTTON
- * ============================================================
- */
-
-function TabButton({
-  title,
-  active,
-  onPress,
-}: {
-  title: string;
-  active: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={[
-        styles.tab,
-        active &&
-          styles.tabActive,
-      ]}
-    >
-      <Text
-        style={[
-          styles.tabText,
-          active &&
-            styles.tabTextActive,
-        ]}
-      >
-        {title}
-      </Text>
-    </Pressable>
-  );
-}
-
-/**
- * ============================================================
- * BOTTOM BUTTON
- * ============================================================
- */
+/* ============================================================
+   BOTTOM BUTTON
+============================================================ */
 
 function BottomButton({
   icon,
@@ -1368,7 +1330,7 @@ function BottomButton({
         style={[
           styles.bottomIcon,
           active &&
-            styles.bottomIconActive,
+          styles.bottomIconActive,
         ]}
       >
         <Ionicons
@@ -1386,7 +1348,7 @@ function BottomButton({
         style={[
           styles.bottomLabel,
           active &&
-            styles.bottomLabelActive,
+          styles.bottomLabelActive,
         ]}
       >
         {label}
@@ -1395,51 +1357,48 @@ function BottomButton({
   );
 }
 
-/**
- * ============================================================
- * STYLES
- * ============================================================
- */
+/* ============================================================
+   STYLES
+============================================================ */
 
 const styles =
   StyleSheet.create({
+
+    /* ========================================================
+       SCREEN
+    ======================================================== */
+
     screen: {
       flex: 1,
-      backgroundColor:
-        "#FFF6F8",
+      backgroundColor: "#FFF8FA",
     },
 
     container: {
-      paddingHorizontal: 20,
-      paddingTop: 20,
-      paddingBottom: 100,
+      paddingHorizontal: 18,
+      paddingTop: 16,
+      paddingBottom: 110,
     },
 
-    /* HEADER */
+    /* ========================================================
+       HEADER
+    ======================================================== */
 
     header: {
-      height: 48,
-      flexDirection:
-        "row",
-      alignItems:
-        "center",
-      justifyContent:
-        "space-between",
+      height: 50,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
     },
 
     menuButton: {
-      width: 42,
-      height: 42,
-      borderRadius: 21,
-      backgroundColor:
-        "#FFFFFF",
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: "#FFFFFF",
       borderWidth: 1,
-      borderColor:
-        "#FFE6ED",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
+      borderColor: "#F4E4E9",
+      alignItems: "center",
+      justifyContent: "center",
     },
 
     logo: {
@@ -1450,52 +1409,47 @@ const styles =
     },
 
     headerRight: {
-      flexDirection:
-        "row",
+      flexDirection: "row",
       gap: 8,
     },
 
     headerIcon: {
-      width: 42,
-      height: 42,
-      borderRadius: 21,
-      backgroundColor:
-        "#FFFFFF",
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: "#FFFFFF",
       borderWidth: 1,
-      borderColor:
-        "#FFE6ED",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
+      borderColor: "#F4E4E9",
+      alignItems: "center",
+      justifyContent: "center",
     },
 
     notificationDot: {
-      position:
-        "absolute",
+      position: "absolute",
       width: 7,
       height: 7,
       borderRadius: 4,
-      backgroundColor:
-        "#FF3D71",
+      backgroundColor: "#FF3D71",
       top: 9,
       right: 9,
     },
 
-    /* GREETING */
+    /* ========================================================
+       GREETING
+    ======================================================== */
 
     greeting: {
-      marginTop: 28,
+      marginTop: 25,
     },
 
     greetingText: {
-      fontSize: 14,
+      fontSize: 13,
       fontWeight: "700",
       color: "#71717A",
     },
 
     userName: {
-      marginTop: 2,
+      marginTop: 3,
       fontSize: 28,
       fontWeight: "900",
       color: "#18181B",
@@ -1507,102 +1461,99 @@ const styles =
       color: "#71717A",
     },
 
-    /* TABS */
+    /* ========================================================
+       DISCOVER
+    ======================================================== */
 
-    tabs: {
-      flexDirection:
-        "row",
+    discoverHeader: {
       marginTop: 26,
-      gap: 9,
-    },
-
-    tab: {
-      paddingHorizontal: 17,
-      height: 40,
-      borderRadius: 20,
-      borderWidth: 1,
-      borderColor:
-        "#FFE6ED",
-      backgroundColor:
-        "#FFFFFF",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-    },
-
-    tabActive: {
-      backgroundColor:
-        "#FF3D71",
-      borderColor:
-        "#FF3D71",
-    },
-
-    tabText: {
-      fontSize: 12,
-      fontWeight: "700",
-      color: "#71717A",
-    },
-
-    tabTextActive: {
-      color: "#FFFFFF",
-    },
-
-    /* SECTION */
-
-    sectionHeader: {
-      marginTop: 27,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
     },
 
     sectionTitle: {
-      fontSize: 18,
+      fontSize: 19,
       fontWeight: "900",
       color: "#18181B",
     },
 
     sectionSubtitle: {
-      marginTop: 3,
-      fontSize: 11,
+      marginTop: 4,
+      fontSize: 12,
       color: "#A1A1AA",
     },
 
-    /* LOADING */
+    filterButton: {
+      width: 42,
+      height: 42,
+      borderRadius: 21,
+      backgroundColor: "#FFFFFF",
+      borderWidth: 1,
+      borderColor: "#F4E4E9",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+
+    /* ========================================================
+       LOADING
+    ======================================================== */
 
     loadingContainer: {
-      marginTop: 30,
-      minHeight: 350,
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
+      minHeight: 400,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+
+    loadingCircle: {
+      width: 58,
+      height: 58,
+      borderRadius: 29,
+      backgroundColor: "#FFF0F4",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+
+    loadingTitle: {
+      marginTop: 15,
+      fontSize: 17,
+      fontWeight: "800",
+      color: "#18181B",
     },
 
     loadingText: {
-      marginTop: 12,
-      fontSize: 13,
-      color: "#71717A",
+      marginTop: 5,
+      fontSize: 12,
+      color: "#A1A1AA",
     },
 
-    /* EMPTY */
+    /* ========================================================
+       EMPTY
+    ======================================================== */
 
     emptyContainer: {
-      marginTop: 30,
-      minHeight: 350,
-      borderRadius: 24,
-      backgroundColor:
-        "#FFFFFF",
+      marginTop: 25,
+      minHeight: 360,
+      borderRadius: 25,
+      backgroundColor: "#FFFFFF",
       borderWidth: 1,
-      borderColor:
-        "#FFE6ED",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
+      borderColor: "#F4E4E9",
+      alignItems: "center",
+      justifyContent: "center",
       paddingHorizontal: 30,
     },
 
+    emptyIcon: {
+      width: 78,
+      height: 78,
+      borderRadius: 39,
+      backgroundColor: "#FFF0F4",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+
     emptyTitle: {
-      marginTop: 15,
+      marginTop: 18,
       fontSize: 20,
       fontWeight: "900",
       color: "#18181B",
@@ -1610,9 +1561,9 @@ const styles =
 
     emptyText: {
       marginTop: 7,
-      textAlign:
-        "center",
       fontSize: 13,
+      lineHeight: 19,
+      textAlign: "center",
       color: "#71717A",
     },
 
@@ -1620,45 +1571,47 @@ const styles =
       marginTop: 20,
       paddingHorizontal: 25,
       paddingVertical: 11,
-      borderRadius: 20,
-      backgroundColor:
-        "#FF3D71",
+      borderRadius: 22,
+      backgroundColor: "#FF3D71",
     },
 
     retryButtonText: {
-      color: "#FFFFFF",
       fontSize: 13,
       fontWeight: "800",
+      color: "#FFFFFF",
     },
 
-    /* CARD */
+    /* ========================================================
+       CARD
+    ======================================================== */
 
     card: {
       marginTop: 18,
-      borderRadius: 26,
-      backgroundColor:
-        "#FFFFFF",
+      borderRadius: 25,
+      backgroundColor: "#FFFFFF",
       borderWidth: 1,
-      borderColor:
-        "#FFE6ED",
+      borderColor: "#F4E4E9",
       overflow: "hidden",
-      shadowColor:
-        "#18181B",
+
+      shadowColor: "#18181B",
       shadowOpacity: 0.06,
       shadowRadius: 12,
       shadowOffset: {
         width: 0,
-        height: 6,
+        height: 5,
       },
+
       elevation: 2,
     },
 
+    /* ========================================================
+       CARD IMAGE
+    ======================================================== */
+
     cardImageWrap: {
-      height: 420,
-      backgroundColor:
-        "#FFF6F8",
-      position:
-        "relative",
+      height: 405,
+      backgroundColor: "#FFF0F4",
+      position: "relative",
     },
 
     cardImage: {
@@ -1667,30 +1620,37 @@ const styles =
     },
 
     cardImagePlaceholder: {
-      width: "100%",
-      height: "100%",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "#FFF0F4",
     },
 
-    /* ONLINE */
+    imageBottomOverlay: {
+      position: "absolute",
+      left: 0,
+      right: 0,
+      bottom: 0,
+      height: 150,
+      backgroundColor:
+        "rgba(0,0,0,0.28)",
+    },
+
+    /* ========================================================
+       ONLINE
+    ======================================================== */
 
     onlineBadge: {
-      position:
-        "absolute",
-      top: 16,
-      left: 16,
+      position: "absolute",
+      top: 15,
+      left: 15,
       paddingHorizontal: 10,
       paddingVertical: 6,
-      borderRadius: 15,
+      borderRadius: 18,
       backgroundColor:
-        "#FFFFFF",
-      flexDirection:
-        "row",
-      alignItems:
-        "center",
+        "rgba(255,255,255,0.96)",
+      flexDirection: "row",
+      alignItems: "center",
       gap: 5,
     },
 
@@ -1698,8 +1658,7 @@ const styles =
       width: 7,
       height: 7,
       borderRadius: 4,
-      backgroundColor:
-        "#22C55E",
+      backgroundColor: "#22C55E",
     },
 
     onlineText: {
@@ -1708,96 +1667,113 @@ const styles =
       color: "#18181B",
     },
 
-    /* IMAGE OVERLAY */
+    /* ========================================================
+       PHOTO COUNT
+    ======================================================== */
 
-    cardOverlay: {
-      position:
-        "absolute",
-      left: 0,
-      right: 0,
-      bottom: 0,
-      padding: 18,
-      paddingTop: 44,
+    photoCount: {
+      position: "absolute",
+      top: 15,
+      right: 15,
+      paddingHorizontal: 9,
+      paddingVertical: 6,
+      borderRadius: 16,
       backgroundColor:
-        "rgba(24,24,27,0.35)",
+        "rgba(24,24,27,0.55)",
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+    },
+
+    photoCountText: {
+      fontSize: 10,
+      fontWeight: "800",
+      color: "#FFFFFF",
+    },
+
+    /* ========================================================
+       IMAGE INFO
+    ======================================================== */
+
+    imageInfo: {
+      position: "absolute",
+      left: 18,
+      right: 18,
+      bottom: 17,
     },
 
     cardName: {
-      fontSize: 24,
+      fontSize: 25,
       fontWeight: "900",
       color: "#FFFFFF",
     },
 
-    cardLocationRow: {
-      flexDirection:
-        "row",
-      alignItems:
-        "center",
-      marginTop: 4,
+    locationRow: {
+      marginTop: 5,
+      flexDirection: "row",
+      alignItems: "center",
       gap: 4,
     },
 
-    cardLocationText: {
+    locationText: {
+      flex: 1,
       fontSize: 12,
       color: "#FFFFFF",
     },
 
-    /* CARD INFO */
+    /* ========================================================
+       CARD INFO
+    ======================================================== */
 
     cardInfo: {
-      padding: 18,
+      padding: 17,
     },
 
     cardBio: {
       fontSize: 13,
-      lineHeight: 18,
+      lineHeight: 19,
       color: "#52525B",
     },
 
     cardTags: {
-      flexDirection:
-        "row",
-      flexWrap:
-        "wrap",
-      gap: 7,
       marginTop: 12,
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 7,
     },
 
     tag: {
-      flexDirection:
-        "row",
-      alignItems:
-        "center",
-      gap: 5,
-      paddingHorizontal: 11,
+      maxWidth: "100%",
+      paddingHorizontal: 10,
       paddingVertical: 6,
       borderRadius: 15,
-      backgroundColor:
-        "#FFF6F8",
+      backgroundColor: "#FFF5F7",
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 5,
     },
 
     tagText: {
+      maxWidth: 150,
       fontSize: 11,
       fontWeight: "700",
       color: "#FF3D71",
     },
 
-    /* MATCH */
+    /* ========================================================
+       MATCH
+    ======================================================== */
 
     matchBadge: {
-      alignSelf:
-        "flex-start",
-      flexDirection:
-        "row",
-      alignItems:
-        "center",
-      gap: 5,
-      marginTop: 12,
-      paddingHorizontal: 11,
+      alignSelf: "flex-start",
+      marginTop: 11,
+      paddingHorizontal: 10,
       paddingVertical: 6,
       borderRadius: 15,
-      backgroundColor:
-        "#FFF0F4",
+      backgroundColor: "#FFF0F4",
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 5,
     },
 
     matchText: {
@@ -1806,156 +1782,150 @@ const styles =
       color: "#FF3D71",
     },
 
-    /* ACTIONS */
+    /* ========================================================
+       ACTIONS
+    ======================================================== */
 
     actionsRow: {
-      flexDirection:
-        "row",
-      alignItems:
-        "center",
-      gap: 10,
       marginTop: 16,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 9,
     },
 
-    actionBtn: {
+    actionButton: {
       flex: 1,
-      flexDirection:
-        "row",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-      gap: 6,
-      height: 46,
+      height: 45,
       borderRadius: 23,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 6,
     },
 
-    /* DISLIKE */
+    /* PASS */
 
-    dislikeBtn: {
-      backgroundColor:
-        "#F7F7F8",
+    dislikeButton: {
+      backgroundColor: "#F7F7F8",
       borderWidth: 1,
-      borderColor:
-        "#E4E4E7",
+      borderColor: "#E4E4E7",
     },
 
-    dislikedBtn: {
-      backgroundColor:
-        "#71717A",
+    dislikedButton: {
+      backgroundColor: "#71717A",
       borderWidth: 1,
-      borderColor:
-        "#71717A",
+      borderColor: "#71717A",
     },
 
-    dislikeText: {
-      fontSize: 13,
+    darkActionText: {
+      fontSize: 12,
       fontWeight: "800",
-      color: "#71717A",
+      color: "#52525B",
     },
 
-    dislikedText: {
+    whiteActionText: {
+      fontSize: 12,
+      fontWeight: "800",
       color: "#FFFFFF",
     },
 
     /* CHAT */
 
-    chatBtn: {
-      backgroundColor:
-        "#FFF6F8",
+    chatButton: {
+      backgroundColor: "#FFF5F7",
       borderWidth: 1,
-      borderColor:
-        "#FFE6ED",
+      borderColor: "#FFE1E9",
     },
 
-    chatText: {
-      fontSize: 13,
+    chatActionText: {
+      fontSize: 12,
       fontWeight: "800",
       color: "#FF3D71",
     },
 
     /* LIKE */
 
-    likeBtn: {
-      backgroundColor:
-        "#FF3D71",
-      shadowColor:
-        "#FF3D71",
-      shadowOpacity: 0.3,
-      shadowRadius: 8,
+    likeButton: {
+      backgroundColor: "#FF3D71",
+
+      shadowColor: "#FF3D71",
+      shadowOpacity: 0.22,
+      shadowRadius: 7,
       shadowOffset: {
         width: 0,
         height: 4,
       },
+
       elevation: 3,
     },
 
-    likedBtn: {
-      backgroundColor:
-        "#E91E63",
-      borderWidth: 1,
-      borderColor:
-        "#E91E63",
+    likedButton: {
+      backgroundColor: "#E91E63",
     },
 
-    likeText: {
-      fontSize: 13,
+    likeActionText: {
+      fontSize: 12,
       fontWeight: "800",
       color: "#FFFFFF",
     },
 
+    /* ========================================================
+       BOTTOM NAV
+    ======================================================== */
+
     bottomSpace: {
-      height: 20,
+      height: 25,
     },
 
-    /* BOTTOM NAV */
-
     bottomNav: {
-      position:
-        "absolute",
+      position: "absolute",
       left: 0,
       right: 0,
       bottom: 0,
-      height: 78,
-      backgroundColor:
-        "#FFFFFF",
+      height: 76,
+
+      backgroundColor: "#FFFFFF",
+
       borderTopWidth: 1,
-      borderTopColor:
-        "#FFE6ED",
-      flexDirection:
-        "row",
-      alignItems:
-        "center",
-      justifyContent:
-        "space-around",
-      paddingHorizontal: 10,
+      borderTopColor: "#F1E4E8",
+
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-around",
+
+      paddingHorizontal: 8,
+
+      shadowColor: "#18181B",
+      shadowOpacity: 0.05,
+      shadowRadius: 10,
+      shadowOffset: {
+        width: 0,
+        height: -3,
+      },
+
+      elevation: 10,
     },
 
     bottomButton: {
       flex: 1,
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
+      alignItems: "center",
+      justifyContent: "center",
     },
 
     bottomIcon: {
-      width: 35,
-      height: 30,
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
+      width: 38,
+      height: 31,
+      borderRadius: 16,
+      alignItems: "center",
+      justifyContent: "center",
     },
 
     bottomIconActive: {
-      backgroundColor:
-        "#FFF6F8",
-      borderRadius: 15,
+      backgroundColor: "#FFF0F4",
     },
 
     bottomLabel: {
-      marginTop: 2,
+      marginTop: 3,
       fontSize: 10,
       fontWeight: "700",
       color: "#71717A",
